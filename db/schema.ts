@@ -19,7 +19,7 @@ export const users = sqliteTable("users", {
   id: text("id").primaryKey().$defaultFn(() => createId()),
   email: text("email").unique().notNull(),
   passwordHash: text("password_hash"),
-  roles: text("roles", { mode: "json" }).$type<typeof roles>().notNull().default(["tenant"]),
+  roles: text("roles", { mode: "json" }).$type<Array<typeof roles[number]>>().notNull().default(["tenant"]),
   stripeCustomerId: text("stripe_customer_id"),
   stripeAccountId: text("stripe_account_id"),
   emailVerified: integer("email_verified", { mode: "boolean" }).default(false),
