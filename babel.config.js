@@ -8,3 +8,4 @@ module.exports = (api) => {
     plugins: ["react-native-reanimated/plugin", ["inline-import", { "extensions": [".sql"] }]]
   };
 };
+
