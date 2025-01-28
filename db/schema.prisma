@@ -1,0 +1,284 @@
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  tenant
+  owner
+  admin
+  super_admin
+}
+
+enum ListingType {
+  room
+  apartment
+  shared_space
+}
+
+enum MessageType {
+  text
+  image
+  file
+}
+
+enum ReportCategory {
+  spam
+  fake
+  inappropriate
+}
+
+enum PaymentCycleType {
+  weekly
+  monthly
+  yearly
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+}
+
+enum FacilityType {
+  electricity
+  water
+  furniture
+  internet
+  cleaning
+}
+
+enum Condition {
+  new
+  like_new
+  used
+}
+
+model User {
+  id               String          @id @default(uuid())
+  email            String          @unique
+  passwordHash     String?
+  roles            Role[]          @default([tenant])
+  stripeCustomerId String?
+  stripeAccountId  String?
+  emailVerified    Boolean         @default(false)
+  lastLogin        DateTime?
+  oauthProvider    String?
+  oauthId          String?
+  createdAt        DateTime        @default(now())
+
+  profile          Profile?
+  ownedListings    RoomListing[]
+  sentMessages     Message[]       @relation("MessageSender")
+  furnitureAds     FurnitureAd[]
+  adminNotes       AdminNote[]     @relation("AdminNoteSubject")
+  createdNotes     AdminNote[]     @relation("AdminNoteAuthor")
+  reports          Report[]
+  paymentsMade     Payment[]       @relation("TenantPayments")
+  paymentsReceived Payment[]       @relation("OwnerPayments")
+  reviews          RoomReview[]
+}
+
+model Profile {
+  id                   String   @id @default(uuid())
+  displayName          String
+  bio                  String?
+  avatarUrl            String?
+  budgetMin            Int?
+  budgetMax            Int?
+  preferredLocation    String?
+  lifestyleTags        String[]
+  phone                String?
+  emergencyContact     String?
+  preferredPaymentMethod String?
+  createdAt            DateTime @default(now())
+
+  user                 User     @relation(fields: [userId], references: [id])
+  userId               String   @unique
+}
+
+model RoomListing {
+  id              String          @id @default(uuid())
+  title           String
+  description     String
+  type            ListingType
+  baseRent        Int
+  securityDeposit Int?
+  availableFrom   DateTime
+  address         String
+  lat             Float
+  lng             Float
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+
+  owner           User            @relation(fields: [ownerId], references: [id])
+  ownerId         String
+  images          RoomImage[]
+  amenities       RoomAmenity[]
+  facilities      RoomFacility[]
+  paymentCycles   PaymentCycle[]
+  payments        Payment[]
+  reviews         RoomReview[]
+}
+
+model RoomImage {
+  id          String      @id @default(uuid())
+  url         String
+  caption     String?
+  order       Int
+
+  listing     RoomListing @relation(fields: [listingId], references: [id])
+  listingId   String
+}
+
+model Amenity {
+  id          String          @id @default(uuid())
+  name        String          @unique
+
+  rooms       RoomAmenity[]
+}
+
+model RoomAmenity {
+  room        RoomListing @relation(fields: [roomId], references: [id])
+  roomId      String
+  amenity     Amenity     @relation(fields: [amenityId], references: [id])
+  amenityId   String
+
+  @@id([roomId, amenityId])
+}
+
+model Facility {
+  id          String          @id @default(uuid())
+  name        FacilityType
+  description String?
+
+  rooms       RoomFacility[]
+}
+
+model RoomFacility {
+  id              String      @id @default(uuid())
+  includedInRent  Boolean     @default(false)
+  additionalCost  Int?
+
+  room            RoomListing @relation(fields: [roomId], references: [id])
+  roomId          String
+  facility        Facility    @relation(fields: [facilityId], references: [id])
+  facilityId      String
+}
+
+model PaymentCycle {
+  id               String      @id @default(uuid())
+  cycleType        PaymentCycleType
+  discountPercentage Int?
+
+  room             RoomListing @relation(fields: [roomId], references: [id])
+  roomId           String
+}
+
+model Payment {
+  id             String          @id @default(uuid())
+  amount         Int
+  serviceFee     Int
+  cycleType      PaymentCycleType
+  dueDate        DateTime
+  paidDate       DateTime?
+  status         PaymentStatus   @default(pending)
+  stripePaymentId String
+  createdAt      DateTime        @default(now())
+
+  tenant         User            @relation("TenantPayments", fields: [tenantId], references: [id])
+  tenantId       String
+  owner          User            @relation("OwnerPayments", fields: [ownerId], references: [id])
+  ownerId        String
+  room           RoomListing     @relation(fields: [roomId], references: [id])
+  roomId         String
+  reminders      PaymentReminder[]
+}
+
+model PaymentReminder {
+  id          String   @id @default(uuid())
+  reminderDate DateTime
+  status      String   @default("pending")
+  sentAt      DateTime?
+
+  payment     Payment  @relation(fields: [paymentId], references: [id])
+  paymentId   String
+}
+
+model MessageThread {
+  id              String      @id @default(uuid())
+  lastMessageAt   DateTime    @default(now())
+
+  participant1    User        @relation("ThreadParticipant1", fields: [participant1Id], references: [id])
+  participant1Id  String
+  participant2    User        @relation("ThreadParticipant2", fields: [participant2Id], references: [id])
+  participant2Id  String
+  messages        Message[]
+}
+
+model Message {
+  id          String      @id @default(uuid())
+  content     String
+  type        MessageType @default(text)
+  fileUrl     String?
+  readAt      DateTime?
+  createdAt   DateTime    @default(now())
+
+  thread      MessageThread @relation(fields: [threadId], references: [id])
+  threadId    String
+  sender      User          @relation("MessageSender", fields: [senderId], references: [id])
+  senderId    String
+}
+
+model FurnitureAd {
+  id          String      @id @default(uuid())
+  title       String
+  description String
+  price       Int
+  condition   Condition?
+  category    String
+  location    String
+  lat         Float?
+  lng         Float?
+  createdAt   DateTime    @default(now())
+
+  seller      User        @relation(fields: [sellerId], references: [id])
+  sellerId    String
+}
+
+model AdminNote {
+  id          String      @id @default(uuid())
+  content     String
+  createdAt   DateTime    @default(now())
+
+  user        User        @relation("AdminNoteSubject", fields: [userId], references: [id])
+  userId      String
+  admin       User        @relation("AdminNoteAuthor", fields: [adminId], references: [id])
+  adminId     String
+}
+
+model Report {
+  id          String        @id @default(uuid())
+  targetType  String
+  targetId    String
+  category    ReportCategory
+  status      String        @default(open)
+  createdAt   DateTime      @default(now())
+
+  reporter    User          @relation(fields: [reporterId], references: [id])
+  reporterId  String
+}
+
+model RoomReview {
+  id        String      @id @default(uuid())
+  rating    Int
+  comment   String?
+  createdAt DateTime    @default(now())
+
+  room      RoomListing @relation(fields: [roomId], references: [id])
+  roomId    String
+  tenant    User        @relation(fields: [tenantId], references: [id])
+  tenantId  String
+}

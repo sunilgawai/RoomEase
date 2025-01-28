@@ -2,8 +2,8 @@ import type { ConfigContext, ExpoConfig } from "@expo/config";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "Expo Starter",
-  slug: "expostarter",
+  name: "RoomEase",
+  slug: "roomease",
   newArchEnabled: true,
   version: "1.0.0",
   orientation: "portrait",
